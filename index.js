@@ -9,455 +9,342 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+
 app.get("/", (req, res) => {
-res.send("AiVerse API Running 🚀");
+  res.send("AiVerse API Running 🚀");
 });
 
 const uri = process.env.MONGO_USER;
 
 const client = new MongoClient(uri, {
-serverApi: {
-version: ServerApiVersion.v1,
-strict: true,
-deprecationErrors: true,
-},
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
 });
 
 async function run() {
-try {
-await client.connect();
-
-
-const db = client.db("AiVerse_db");
-const promptCollection = db.collection("prompts");
-const bookmarkCollection = db.collection("bookmarks");
-
-
-app.post("/api/prompts", async (req, res) => {
   try {
-    const prompt = req.body;
+    await client.connect();
 
-    if (!prompt.userEmail) {
-      return res.status(400).send({
-        success: false,
-        error: "User email is required",
-      });
-    }
+    const db = client.db("AiVerse_db");
 
-    const newPrompt = {
-      title: prompt.title,
-      description: prompt.description,
+    const promptCollection = db.collection("prompts");
+    const bookmarkCollection = db.collection("bookmarks");
+    const reviewCollection = db.collection("reviews"); 
 
-      prompt: prompt.prompt,
+    app.post("/api/prompts", async (req, res) => {
+      try {
+        const prompt = req.body;
 
-      category: prompt.category || "",
-      aiTool: prompt.aiTool || "",
-
-      tags: prompt.tags || [],
-
-      difficulty:
-        prompt.difficulty || "Beginner",
-
-      thumbnail:
-        prompt.thumbnail || "",
-
-      visibility:
-        prompt.visibility || "Public",
-
-      userEmail: prompt.userEmail,
-      userName: prompt.userName || "",
-
-     
-      role: prompt.role || "user",
-
-      copyCount: 0,
-      status: "pending",
-
-      featured: false,
-
-      createdAt: new Date(),
-    };
-
-    const result =
-      await promptCollection.insertOne(
-        newPrompt
-      );
-
-    res.send({
-      success: true,
-      insertedId: result.insertedId,
-      message:
-        "Prompt submitted successfully and waiting for admin approval",
-    });
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).send({
-      success: false,
-      error: "Create failed",
-    });
-  }
-});
-
-
-app.get("/api/prompts", async (req, res) => {
-  try {
-    const email = req.query.email;
-
-    if (!email) {
-      return res.status(400).send({
-        error: "Email is required",
-      });
-    }
-
-    const result =
-      await promptCollection
-        .find({
-          userEmail: email,
-        })
-        .sort({
-          createdAt: -1,
-        })
-        .toArray();
-
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).send({
-      error: "Fetch failed",
-    });
-  }
-});
-
-
-app.get("/api/all-prompts", async (req, res) => {
-  try {
-    const { search, category, difficulty, aiTool, sort } = req.query;
-
-    let query = {
-      visibility: "Public",
-      status: "approved",
-    };
-
- 
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { aiTool: { $regex: search, $options: "i" } },
-        { tags: { $in: [new RegExp(search, "i")] } },
-      ];
-    }
-
-    
-    if (category && category !== "All") {
-      query.category = category;
-    }
-
-  
-    if (difficulty && difficulty !== "All") {
-      query.difficulty = difficulty;
-    }
-
-    if (aiTool && aiTool !== "All") {
-      query.aiTool = aiTool;
-    }
-
-  
-    let sortOption = { createdAt: -1 }; // latest default
-
-    if (sort === "popular") {
-      sortOption = { rating: -1 }; // future rating system
-    }
-
-    if (sort === "copied") {
-      sortOption = { copyCount: -1 };
-    }
-
-    if (sort === "latest") {
-      sortOption = { createdAt: -1 };
-    }
-
-    const result = await promptCollection
-      .find(query)
-      .sort(sortOption)
-      .toArray();
-
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({
-      error: "All prompts fetch failed",
-    });
-  }
-});
-
-
-app.get("/api/prompts/:id", async (req, res) => {
-  try {
-    const result =
-      await promptCollection.findOne({
-        _id: new ObjectId(
-          req.params.id
-        ),
-      });
-
-    if (!result) {
-      return res.status(404).send({
-        error: "Prompt not found",
-      });
-    }
-
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).send({
-      error:
-        "Single prompt fetch failed",
-    });
-  }
-});
-
-
-app.put("/api/prompts/:id", async (req, res) => {
-  try {
-    const id = req.params.id;
-    const data = req.body;
-
-    const result =
-      await promptCollection.updateOne(
-        {
-          _id: new ObjectId(id),
-        },
-        {
-          $set: {
-            title: data.title,
-            description:
-              data.description,
-            prompt: data.prompt,
-
-            category:
-              data.category,
-
-            aiTool:
-              data.aiTool,
-
-            tags:
-              data.tags || [],
-
-            difficulty:
-              data.difficulty,
-
-            thumbnail:
-              data.thumbnail,
-
-            visibility:
-              data.visibility,
-          },
+        if (!prompt.userEmail) {
+          return res.status(400).send({
+            success: false,
+            error: "User email is required",
+          });
         }
-      );
 
-    res.send(result);
-  } catch (error) {
-    console.error(error);
+        const newPrompt = {
+          title: prompt.title,
+          description: prompt.description,
+          prompt: prompt.prompt,
 
-    res.status(500).send({
-      error: "Update failed",
-    });
-  }
-});
+          category: prompt.category || "",
+          aiTool: prompt.aiTool || "",
+          tags: prompt.tags || [],
+          difficulty: prompt.difficulty || "Beginner",
+          thumbnail: prompt.thumbnail || "",
+          visibility: prompt.visibility || "Public",
 
+          userEmail: prompt.userEmail,
+          userName: prompt.userName || "",
+          role: prompt.role || "user",
 
-app.delete("/api/prompts/:id", async (req, res) => {
-  try {
-    const result =
-      await promptCollection.deleteOne({
-        _id: new ObjectId(
-          req.params.id
-        ),
-      });
+          copyCount: 0,
+          status: "pending",
+          featured: false,
 
-    res.send(result);
-  } catch (error) {
-    console.error(error);
+          createdAt: new Date(),
+        };
 
-    res.status(500).send({
-      error: "Delete failed",
-    });
-  }
-});
+        const result = await promptCollection.insertOne(newPrompt);
 
-
-app.post("/api/bookmarks", async (req, res) => {
-  try {
-    const { promptId, userEmail } = req.body;
-
-    const exists = await bookmarkCollection.findOne({
-      promptId,
-      userEmail,
+        res.send({
+          success: true,
+          insertedId: result.insertedId,
+          message: "Prompt submitted successfully",
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Create failed" });
+      }
     });
 
-    if (exists) {
-      return res.status(400).send({
-        error: "Already bookmarked",
-      });
-    }
+    app.get("/api/prompts", async (req, res) => {
+      try {
+        const email = req.query.email;
 
-    const prompt = await promptCollection.findOne({
-      _id: new ObjectId(promptId),
+        if (!email) {
+          return res.status(400).send({ error: "Email required" });
+        }
+
+        const result = await promptCollection
+          .find({ userEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Fetch failed" });
+      }
     });
 
-    if (!prompt) {
-      return res.status(404).send({
-        error: "Prompt not found",
-      });
-    }
+    app.get("/api/all-prompts", async (req, res) => {
+      try {
+        const { search, category, difficulty, aiTool, sort } = req.query;
 
-    const bookmark = {
-      promptId,
-      userEmail,
+        let query = {
+          visibility: "Public",
+          status: "approved",
+        };
 
-      title: prompt.title,
-      category: prompt.category,
-      thumbnail: prompt.thumbnail,
+        if (search) {
+          query.$or = [
+            { title: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } },
+            { aiTool: { $regex: search, $options: "i" } },
+            { tags: { $in: [new RegExp(search, "i")] } },
+          ];
+        }
 
-      createdAt: new Date(),
-    };
+        if (category && category !== "All") query.category = category;
+        if (difficulty && difficulty !== "All") query.difficulty = difficulty;
+        if (aiTool && aiTool !== "All") query.aiTool = aiTool;
 
-    const result =
-      await bookmarkCollection.insertOne(
-        bookmark
-      );
+        let sortOption = { createdAt: -1 };
 
-    res.send(result);
-  } catch (error) {
-    console.error(error);
+        if (sort === "copied") sortOption = { copyCount: -1 };
 
-    res.status(500).send({
-      error: "Bookmark failed",
+        const result = await promptCollection
+          .find(query)
+          .sort(sortOption)
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Fetch failed" });
+      }
     });
-  }
-});
 
-app.get("/api/bookmarks", async (req, res) => {
-  try {
-    const email = req.query.email;
-
-    const result =
-      await bookmarkCollection
-        .find({
-          userEmail: email,
-        })
-        .sort({
-          createdAt: -1,
-        })
-        .toArray();
-
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).send({
-      error: "Bookmarks fetch failed",
-    });
-  }
-});
-
-app.delete(
-  "/api/bookmarks/:id",
-  async (req, res) => {
-    try {
-      const result =
-        await bookmarkCollection.deleteOne({
-          _id: new ObjectId(
-            req.params.id
-          ),
+    app.get("/api/prompts/:id", async (req, res) => {
+      try {
+        const result = await promptCollection.findOne({
+          _id: new ObjectId(req.params.id),
         });
 
-      res.send(result);
-    } catch (error) {
-      console.error(error);
+        if (!result) {
+          return res.status(404).send({ error: "Not found" });
+        }
 
-      res.status(500).send({
-        error: "Remove failed",
-      });
-    }
-  }
-);
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Fetch failed" });
+      }
+    });
 
-app.get(
-  "/api/bookmarks/check",
-  async (req, res) => {
-    try {
-      const { promptId, email } = req.query;
+    app.patch("/api/prompts/copy/:id", async (req, res) => {
+      try {
+        const result = await promptCollection.updateOne(
+          { _id: new ObjectId(req.params.id) },
+          { $inc: { copyCount: 1 } }
+        );
 
-      const bookmark =
-        await bookmarkCollection.findOne({
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Copy failed" });
+      }
+    });
+
+    app.post("/api/bookmarks", async (req, res) => {
+      try {
+        const { promptId, userEmail } = req.body;
+
+        const exists = await bookmarkCollection.findOne({
+          promptId,
+          userEmail,
+        });
+
+        if (exists) {
+          return res.status(400).send({ error: "Already bookmarked" });
+        }
+
+        const prompt = await promptCollection.findOne({
+          _id: new ObjectId(promptId),
+        });
+
+        const bookmark = {
+          promptId,
+          userEmail,
+          title: prompt.title,
+          category: prompt.category,
+          thumbnail: prompt.thumbnail,
+          createdAt: new Date(),
+        };
+
+        const result = await bookmarkCollection.insertOne(bookmark);
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Bookmark failed" });
+      }
+    });
+
+    app.get("/api/bookmarks", async (req, res) => {
+      try {
+        const email = req.query.email;
+
+        const result = await bookmarkCollection
+          .find({ userEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Fetch failed" });
+      }
+    });
+
+    app.delete("/api/bookmarks/:id", async (req, res) => {
+      try {
+        const result = await bookmarkCollection.deleteOne({
+          _id: new ObjectId(req.params.id),
+        });
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Delete failed" });
+      }
+    });
+
+    app.get("/api/bookmarks/check", async (req, res) => {
+      try {
+        const { promptId, email } = req.query;
+
+        const data = await bookmarkCollection.findOne({
           promptId,
           userEmail: email,
         });
 
-      res.send({
-        bookmarked: !!bookmark,
-      });
-    } catch (error) {
-      console.error(error);
-
-      res.status(500).send({
-        error: "Check failed",
-      });
-    }
-  }
-);
+        res.send({ bookmarked: !!data });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Check failed" });
+      }
+    });
 
 
-app.patch(
-  "/api/prompts/copy/:id",
-  async (req, res) => {
-    try {
-      const result =
-        await promptCollection.updateOne(
-          {
-            _id: new ObjectId(
-              req.params.id
-            ),
-          },
-          {
-            $inc: {
-              copyCount: 1,
-            },
-          }
+
+    app.post("/api/reviews", async (req, res) => {
+      try {
+        const { promptId, userEmail, rating, comment } = req.body;
+
+        if (!promptId || !userEmail) {
+          return res.status(400).send({ error: "Missing fields" });
+        }
+
+        const review = {
+          promptId,
+          userEmail,
+          rating: Number(rating) || 0,
+          comment: comment || "",
+          createdAt: new Date(),
+        };
+
+        const result = await reviewCollection.insertOne(review);
+
+        res.send({ _id: result.insertedId, ...review });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Review failed" });
+      }
+    });
+
+    app.get("/api/reviews/:promptId", async (req, res) => {
+      try {
+        const result = await reviewCollection
+          .find({ promptId: req.params.promptId })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Fetch failed" });
+      }
+    });
+
+    app.get("/api/reviews", async (req, res) => {
+      try {
+        const email = req.query.email;
+
+        const result = await reviewCollection
+          .find({ userEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Fetch failed" });
+      }
+    });
+
+    app.get("/api/dashboard/stats", async (req, res) => {
+      try {
+        const email = req.query.email;
+
+        const totalPrompts = await promptCollection.countDocuments({
+          userEmail: email,
+        });
+
+        const totalBookmarks = await bookmarkCollection.countDocuments({
+          userEmail: email,
+        });
+
+        const prompts = await promptCollection.find({ userEmail: email }).toArray();
+
+        const totalCopies = prompts.reduce(
+          (sum, item) => sum + (item.copyCount || 0),
+          0
         );
 
-      res.send(result);
-    } catch (error) {
-      console.error(error);
+        res.send({
+          totalPrompts,
+          totalBookmarks,
+          totalCopies,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Stats failed" });
+      }
+    });
 
-      res.status(500).send({
-        error:
-          "Copy count update failed",
-      });
-    }
+    console.log("✅ MongoDB Connected Successfully!");
+  } finally {
+  
   }
-);
-
-await db.command({ ping: 1 });
-
-console.log(
-  "✅ MongoDB Connected Successfully!"
-);
-
-
-} finally {
-}
 }
 
 run().catch(console.dir);
 
 app.listen(port, () => {
-console.log(
-`🚀 Server running on port ${port}`
-);
+  console.log(`🚀 Server running on port ${port}`);
 });
