@@ -33,6 +33,7 @@ async function run() {
     const promptCollection = db.collection("prompts");
     const bookmarkCollection = db.collection("bookmarks");
     const reviewCollection = db.collection("reviews"); 
+    const userCollection = db.collection("users");
 
     app.post("/api/prompts", async (req, res) => {
       try {
@@ -100,6 +101,131 @@ async function run() {
         res.status(500).send({ error: "Fetch failed" });
       }
     });
+    app.post("/api/users", async (req, res) => {
+  try {
+    const user = req.body;
+
+    const existingUser = await userCollection.findOne({
+      email: user.email,
+    });
+
+    if (existingUser) {
+      return res.send(existingUser);
+    }
+
+    const newUser = {
+      name: user.name,
+      email: user.email,
+      image: user.image || "",
+      role: user.role || "user",
+      createdAt: new Date(),
+    };
+
+    const result = await userCollection.insertOne(newUser);
+
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: "Create user failed" });
+  }
+});
+
+// Get all prompts
+app.get("/api/admin/prompts", async (req, res) => {
+  const prompts = await promptCollection
+    .find()
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  res.send(prompts);
+});
+
+// Update status
+app.patch("/api/admin/prompts/:id/status", async (req, res) => {
+  const { status, feedback } = req.body;
+
+  const result = await promptCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    {
+      $set: {
+        status,
+        feedback: feedback || "",
+      },
+    }
+  );
+
+  res.send(result);
+});
+
+// Toggle feature
+app.patch("/api/admin/prompts/:id/feature", async (req, res) => {
+  const { featured } = req.body;
+
+  const result = await promptCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    {
+      $set: { featured },
+    }
+  );
+
+  res.send(result);
+});
+
+// Delete
+app.delete("/api/admin/prompts/:id", async (req, res) => {
+  const result = await promptCollection.deleteOne({
+    _id: new ObjectId(req.params.id),
+  });
+
+  res.send(result);
+});
+
+app.get("/api/admin/users", async (req, res) => {
+  try {
+    const users = await userCollection
+      .find()
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.send(users);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: "Fetch users failed" });
+  }
+});
+
+app.patch("/api/admin/users/:id", async (req, res) => {
+  try {
+    const { role } = req.body;
+
+    const result = await userCollection.updateOne(
+      { _id: new ObjectId(req.params.id) },
+      {
+        $set: {
+          role,
+        },
+      }
+    );
+
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: "Role update failed" });
+  }
+});
+
+app.delete("/api/admin/users/:id", async (req, res) => {
+  try {
+    const result = await userCollection.deleteOne({
+      _id: new ObjectId(req.params.id),
+    });
+
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: "Delete user failed" });
+  }
+});
 
     app.get("/api/all-prompts", async (req, res) => {
       try {
